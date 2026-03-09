@@ -8,13 +8,24 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const palette = Colors[colorScheme ?? 'light'];
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        animation: 'shift',
+        tabBarActiveTintColor: palette.tint,
+        tabBarInactiveTintColor: '#94A3B8',
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          height: 64,
+          paddingBottom: 10,
+          paddingTop: 8,
+          borderTopWidth: 0,
+          backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#FFFFFF',
+          elevation: 0,
+        },
       }}>
       <Tabs.Screen
         name="index"
@@ -24,9 +35,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="nearby-orders"
         options={{
-          title: 'Explore',
+          title: 'Orders',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="earnings"
+        options={{
+          title: 'Earn',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
         }}
       />

@@ -1,98 +1,102 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Animated } from "react-native";
+import { useTabSwipe } from "@/hooks/use-tab-swipe";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function Home() {
+  const tabSwipe = useTabSwipe({ left: "/(tabs)/nearby-orders" });
 
-export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <Animated.View style={[styles.container, tabSwipe.animatedStyle]} {...tabSwipe.panHandlers}>
+      <Text style={styles.eyebrow}>TODAY</Text>
+      <Text style={styles.title}>Delivery Dashboard</Text>
+      <Text style={styles.subtitle}>Track your orders and performance at a glance.</Text>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <View style={styles.statsGrid}>
+        <View style={[styles.card, styles.primaryCard]}>
+          <Text style={styles.cardLabel}>Active Orders</Text>
+          <Text style={styles.primaryValue}>2</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Completed</Text>
+          <Text style={styles.cardValue}>15</Text>
+        </View>
+      </View>
+
+      <View style={styles.highlightCard}>
+        <Text style={styles.cardLabel}>Earnings Today</Text>
+        <Text style={styles.moneyValue}>{"\u20B9"}500</Text>
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    backgroundColor: "#F8FAFC",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  eyebrow: {
+    fontSize: 12,
+    letterSpacing: 1.2,
+    color: "#64748B",
+    fontWeight: "700",
+    marginBottom: 6,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  title: {
+    fontSize: 30,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+  subtitle: {
+    color: "#475569",
+    marginTop: 8,
+    marginBottom: 22,
+    fontSize: 15,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  primaryCard: {
+    backgroundColor: "#ECFEFF",
+    borderColor: "#A5F3FC",
+  },
+  cardLabel: {
+    fontSize: 13,
+    color: "#64748B",
+    marginBottom: 10,
+    fontWeight: "600",
+  },
+  cardValue: {
+    fontSize: 28,
+    color: "#0F172A",
+    fontWeight: "700",
+  },
+  primaryValue: {
+    fontSize: 34,
+    color: "#0E7490",
+    fontWeight: "800",
+  },
+  highlightCard: {
+    marginTop: 12,
+    backgroundColor: "#0F172A",
+    borderRadius: 16,
+    padding: 18,
+  },
+  moneyValue: {
+    marginTop: 8,
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#F8FAFC",
   },
 });
