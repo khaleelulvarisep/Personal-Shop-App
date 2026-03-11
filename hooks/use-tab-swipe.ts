@@ -4,7 +4,7 @@ import { PanResponder } from "react-native";
 
 type SwipeTargets = {
   left?: "/(tabs)/nearby-orders" | "/(tabs)/earnings";
-  right?: "/(tabs)" | "/(tabs)/nearby-orders";
+  right?: "/(tabs)/home" | "/(tabs)/nearby-orders";
 };
 
 const SWIPE_DISTANCE = 70;

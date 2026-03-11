@@ -1,58 +1,74 @@
-import { View, Text, TextInput, Button, StyleSheet } from "react-native";
-import { router } from "expo-router";
+import { View, Text, TextInput, Pressable } from "react-native";
 import { useState } from "react";
+import { router } from "expo-router";
+import { API_BASE_URL } from "@/constants/api";
+import * as SecureStore from "expo-secure-store";
+import { setTokens } from "@/lib/auth-tokens";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = () => {
-    // Later we will connect Django API here
-    router.replace("/(tabs)");
+  const login = async () => {
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/delivery/login/`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    const access = typeof data?.access === "string" ? data.access : typeof data?.token === "string" ? data.token : null;
+    const refresh = typeof data?.refresh === "string" ? data.refresh : null;
+
+    if (access) {
+
+      await setTokens({ access, refresh });
+      await SecureStore.setItemAsync("username", username.trim());
+      router.replace("/(tabs)/home");
+
+    } else {
+
+      alert(data.error);
+
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Delivery Partner Login</Text>
+    <View style={{ padding: 30 }}>
+
+      <Text style={{ fontSize: 22 }}>Delivery Login</Text>
 
       <TextInput
-        placeholder="Email"
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
+        placeholder="Username"
+        onChangeText={setUsername}
+        style={{ borderWidth: 1, marginTop: 20, padding: 10 }}
       />
 
       <TextInput
         placeholder="Password"
         secureTextEntry
-        style={styles.input}
-        value={password}
         onChangeText={setPassword}
+        style={{ borderWidth: 1, marginTop: 20, padding: 10 }}
       />
 
-      <Button title="Login" onPress={handleLogin} />
+      <Pressable
+        onPress={login}
+        style={{ backgroundColor: "#0EA5E9", padding: 15, marginTop: 20 }}
+      >
+        <Text style={{ color: "white" }}>Login</Text>
+      </Pressable>
+
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 20,
-  },
-
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 10,
-    marginBottom: 15,
-    borderRadius: 6,
-  },
-});
