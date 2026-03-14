@@ -30,7 +30,7 @@ export default function Login() {
 
     const access = typeof data?.access === "string" ? data.access : typeof data?.token === "string" ? data.token : null;
     const refresh = typeof data?.refresh === "string" ? data.refresh : null;
-
+    await SecureStore.setItemAsync("user_id", String(data.user.id));
     if (access) {
 
       await setTokens({ access, refresh });

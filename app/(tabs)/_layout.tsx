@@ -13,6 +13,7 @@ const TITLE_BY_TAB: Record<string, string> = {
   home: 'Home',
   'nearby-orders': 'Orders',
   earnings: 'Earn',
+  tracking: 'Tracking',
 };
 
 function isKnownTabSegment(
@@ -79,6 +80,13 @@ export default function TabLayout() {
               tabBarIcon: ({ color }) => (
                 <IconSymbol size={28} name="paperplane.fill" color={color} />
               ),
+            }}
+          />
+          <Tabs.Screen
+            name="tracking"
+            options={{
+              title: 'Tracking',
+              tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
             }}
           />
         </Tabs>

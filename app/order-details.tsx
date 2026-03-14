@@ -1,8 +1,10 @@
+import * as SecureStore from "expo-secure-store";
 import { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { API_BASE_URL } from "@/constants/api";
 import { authFetch } from "@/lib/api-client";
+import { startTracking } from "../services/location";
 
 
 type OrderItem = {
@@ -12,6 +14,7 @@ type OrderItem = {
 
 type OrderDetailsResponse = {
   id: number;
+  delivery_partner?:number;
   budget?: number;
   urgency?: string;
   distance?: number;
@@ -27,6 +30,7 @@ export default function OrderDetails() {
     distance?: string | string[];
     items_text?: string | string[];
   }>();
+  const [userId, setUserId] = useState<number | null>(null);
 
   const orderId = useMemo(() => {
     const rawId = Array.isArray(id) ? id[0] : id;
@@ -110,6 +114,22 @@ export default function OrderDetails() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadUserId = async () => {
+      const stored = await SecureStore.getItemAsync("user_id");
+      const parsed = stored != null ? Number(stored) : NaN;
+      if (!cancelled) setUserId(Number.isFinite(parsed) ? parsed : null);
+    };
+
+    loadUserId();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!orderId) {
       setOrder(null);
       setError("Missing or invalid order id.");
@@ -124,8 +144,8 @@ export default function OrderDetails() {
 
 
 
-  const acceptOrder = async (targetOrderId: number) => {
-    if (accepting) return;
+  const acceptOrder = async (targetOrderId: number): Promise<boolean> => {
+    if (accepting) return false;
     setAccepting(true);
 
     try {
@@ -141,7 +161,7 @@ export default function OrderDetails() {
       if (response.status === 401) {
         alert("Session expired. Please login again.");
         router.replace("/(auth)/login");
-        return;
+        return false;
       }
 
       if (!response.ok) {
@@ -152,7 +172,7 @@ export default function OrderDetails() {
           (typeof payload === "string" && payload.trim() ? payload : null) ??
           `Failed to accept order. (${response.status})`;
         alert(message);
-        return;
+        return false;
       }
 
       const message =
@@ -161,9 +181,10 @@ export default function OrderDetails() {
           : null) ?? "Order accepted.";
 
       alert(message);
-      router.replace("/(tabs)/nearby-orders");
+      return true;
     } catch {
       alert("Network error while accepting the order.");
+      return false;
     } finally {
       setAccepting(false);
     }
@@ -255,10 +276,30 @@ export default function OrderDetails() {
             (!order || loading || accepting) && styles.primaryButtonDisabled,
             pressed && !(!order || loading || accepting) && styles.primaryButtonPressed,
           ]}
-          onPress={() => {
+          onPress={async () => {
             if (!order) return;
-            acceptOrder(order.id);
+
+            const accepted = await acceptOrder(order.id);
+            if (!accepted) return;
+
+            if (userId == null) {
+              alert("Could not start tracking: missing user id.");
+              router.replace("/(tabs)/nearby-orders");
+              return;
+            }
+
+            void startTracking(userId);
+            router.replace("/(tabs)/nearby-orders");
           }}
+//           onPress={async () => {
+//   if (!order) return;
+
+//   const driverId = 16; // temp test
+
+//   startTracking(driverId);
+
+//   await acceptOrder(order.id);
+// }}
         >
           {accepting ? (
             <ActivityIndicator color="#FFFFFF" />
