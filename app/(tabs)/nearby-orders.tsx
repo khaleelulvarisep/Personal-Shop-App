@@ -1,6 +1,5 @@
 ﻿
 
-
 import { View, Text, Pressable, StyleSheet, ScrollView, Animated } from "react-native";
 import { router } from "expo-router";
 import { useTabSwipe } from "@/hooks/use-tab-swipe";
@@ -83,7 +82,16 @@ export default function NearbyOrders() {
     <Animated.View style={[styles.page, tabSwipe.animatedStyle]} {...tabSwipe.panHandlers}>
       <ScrollView contentContainerStyle={styles.container}>
 
-        <Text style={styles.title}>Nearby Orders</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Nearby Orders</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/accepted-orders")}
+            style={({ pressed }) => [styles.myOrdersButton, pressed && styles.myOrdersButtonPressed]}
+          >
+            <Text style={styles.myOrdersButtonText}>My Orders</Text>
+          </Pressable>
+        </View>
         <Text style={styles.subtitle}>
           Pick your next delivery based on value and distance.
         </Text>
@@ -150,10 +158,31 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     minHeight: "100%",
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   title: {
     fontSize: 28,
     fontWeight: "800",
     color: "#0F172A",
+    flexShrink: 1,
+  },
+  myOrdersButton: {
+    backgroundColor: "#0F172A",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  myOrdersButtonPressed: {
+    opacity: 0.85,
+  },
+  myOrdersButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 12,
   },
   subtitle: {
     marginTop: 6,
