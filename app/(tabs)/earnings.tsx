@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Animated } from "react-native";
 import { useTabSwipe } from "@/hooks/use-tab-swipe";
+import { Colors } from "@/constants/theme";
 
 export default function Earnings() {
   const tabSwipe = useTabSwipe({ right: "/(tabs)/nearby-orders" });
@@ -39,35 +40,35 @@ export default function Earnings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
     paddingHorizontal: 20,
     paddingTop: 28,
   },
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   subtitle: {
     marginTop: 6,
     marginBottom: 16,
-    color: "#475569",
+    color: Colors.light.mutedText,
     fontSize: 15,
   },
   mainCard: {
-    backgroundColor: "#0F172A",
+    backgroundColor: Colors.light.strongBg,
     borderRadius: 18,
     padding: 18,
     marginBottom: 12,
   },
   mainLabel: {
-    color: "#CBD5E1",
+    color: Colors.light.strongText,
     fontSize: 13,
     marginBottom: 8,
     fontWeight: "600",
   },
   mainValue: {
-    color: "#FFFFFF",
+    color: Colors.light.strongText,
     fontSize: 34,
     fontWeight: "800",
   },
@@ -78,45 +79,45 @@ const styles = StyleSheet.create({
   },
   smallCard: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
     borderRadius: 16,
     padding: 14,
   },
   smallLabel: {
-    color: "#64748B",
+    color: Colors.light.mutedText,
     fontSize: 12,
     marginBottom: 8,
     fontWeight: "600",
   },
   smallValue: {
-    color: "#0F172A",
+    color: Colors.light.text,
     fontSize: 24,
     fontWeight: "700",
   },
   goalCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
     padding: 14,
   },
   progressTrack: {
     height: 10,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: Colors.light.border,
     borderRadius: 999,
     overflow: "hidden",
   },
   progressFill: {
     width: "75%",
     height: "100%",
-    backgroundColor: "#0EA5E9",
+    backgroundColor: Colors.light.tint,
     borderRadius: 999,
   },
   goalText: {
     marginTop: 8,
-    color: "#475569",
+    color: Colors.light.mutedText,
     fontSize: 13,
     fontWeight: "600",
   },

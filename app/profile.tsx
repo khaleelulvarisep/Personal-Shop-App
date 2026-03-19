@@ -4,6 +4,7 @@ import { Stack, router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { clearTokens } from "@/lib/auth-tokens";
+import { Colors } from "@/constants/theme";
 
 function getInitial(username: string | null) {
   const trimmed = (username ?? "").trim();
@@ -77,7 +78,7 @@ export default function Profile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
     paddingHorizontal: 16,
   },
   header: {
@@ -91,22 +92,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   backText: {
-    color: "#0EA5E9",
+    color: Colors.light.tint,
     fontWeight: "800",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "900",
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
     padding: 16,
     marginBottom: 12,
   },
@@ -114,37 +115,37 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: Colors.light.tint,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    color: "#FFFFFF",
+    color: Colors.light.strongText,
     fontSize: 22,
     fontWeight: "900",
   },
   name: {
     fontSize: 18,
     fontWeight: "900",
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   meta: {
     marginTop: 2,
-    color: "#64748B",
+    color: Colors.light.mutedText,
     fontSize: 13,
     fontWeight: "600",
   },
   detailsCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
     padding: 16,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: "900",
-    color: "#0F172A",
+    color: Colors.light.text,
     marginBottom: 10,
   },
   detailRow: {
@@ -152,28 +153,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: Colors.light.border,
   },
   detailLabel: {
-    color: "#64748B",
+    color: Colors.light.mutedText,
     fontSize: 13,
     fontWeight: "700",
   },
   detailValue: {
-    color: "#0F172A",
+    color: Colors.light.text,
     fontSize: 13,
     fontWeight: "800",
   },
   logoutButton: {
     marginTop: "auto",
     marginBottom: 24,
-    backgroundColor: "#0F172A",
+    backgroundColor: Colors.light.strongBg,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
   },
   logoutText: {
-    color: "#FFFFFF",
+    color: Colors.light.strongText,
     fontSize: 15,
     fontWeight: "900",
   },

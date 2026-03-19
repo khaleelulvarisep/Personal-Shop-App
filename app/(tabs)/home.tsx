@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Animated } from "react-native";
 import { useTabSwipe } from "@/hooks/use-tab-swipe";
+import { Colors } from "@/constants/theme";
 
 export default function Home() {
   const tabSwipe = useTabSwipe({ left: "/(tabs)/nearby-orders" });
@@ -35,22 +36,22 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 28,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
   },
   eyebrow: {
     fontSize: 12,
     letterSpacing: 1.2,
-    color: "#64748B",
+    color: Colors.light.mutedText,
     fontWeight: "700",
     marginBottom: 6,
   },
   title: {
     fontSize: 30,
     fontWeight: "bold",
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   subtitle: {
-    color: "#475569",
+    color: Colors.light.mutedText,
     marginTop: 8,
     marginBottom: 22,
     fontSize: 15,
@@ -61,35 +62,35 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
   },
   primaryCard: {
-    backgroundColor: "#ECFEFF",
-    borderColor: "#A5F3FC",
+    backgroundColor: Colors.light.surfaceAlt,
+    borderColor: Colors.light.border,
   },
   cardLabel: {
     fontSize: 13,
-    color: "#64748B",
+    color: Colors.light.mutedText,
     marginBottom: 10,
     fontWeight: "600",
   },
   cardValue: {
     fontSize: 28,
-    color: "#0F172A",
+    color: Colors.light.text,
     fontWeight: "700",
   },
   primaryValue: {
     fontSize: 34,
-    color: "#0E7490",
+    color: Colors.light.strongBg,
     fontWeight: "800",
   },
   highlightCard: {
     marginTop: 12,
-    backgroundColor: "#0F172A",
+    backgroundColor: Colors.light.strongBg,
     borderRadius: 16,
     padding: 18,
   },
@@ -97,6 +98,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 30,
     fontWeight: "800",
-    color: "#F8FAFC",
+    color: Colors.light.strongText,
   },
 });

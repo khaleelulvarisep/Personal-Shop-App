@@ -1,11 +1,10 @@
-﻿
-
 import { View, Text, Pressable, StyleSheet, ScrollView, Animated } from "react-native";
 import { router } from "expo-router";
 import { useTabSwipe } from "@/hooks/use-tab-swipe";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as Location from "expo-location";
 import { API_BASE_URL } from "@/constants/api";
+import { Colors } from "@/constants/theme";
 
 type Order = {
   id: number
@@ -23,7 +22,7 @@ export default function NearbyOrders() {
   const [loading, setLoading] = useState(true);
 
   // Get delivery partner location
-  const getLocation = async () => {
+  const getLocation = useCallback(async () => {
 
     let { status } = await Location.requestForegroundPermissionsAsync();
 
@@ -38,10 +37,10 @@ export default function NearbyOrders() {
       latitude: location.coords.latitude,
       longitude: location.coords.longitude
     };
-  };
+  }, []);
 
   // Fetch nearby orders
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
 
     try {
 
@@ -63,20 +62,16 @@ export default function NearbyOrders() {
       console.log("Error fetching orders:", error);
 
     }
-  };
+  }, [getLocation]);
 
   // Load orders
   useEffect(() => {
 
     fetchOrders();
 
-    // const interval = setInterval(() => {
-      fetchOrders();
-    // }, 5000); // auto refresh every 5 seconds
-
     // return () => clearInterval(interval);
 
-  }, []);
+  }, [fetchOrders]);
 
   return (
     <Animated.View style={[styles.page, tabSwipe.animatedStyle]} {...tabSwipe.panHandlers}>
@@ -151,11 +146,11 @@ export default function NearbyOrders() {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
   },
   container: {
     padding: 20,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
     minHeight: "100%",
   },
   headerRow: {
@@ -167,11 +162,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#0F172A",
+    color: Colors.light.text,
     flexShrink: 1,
   },
   myOrdersButton: {
-    backgroundColor: "#0F172A",
+    backgroundColor: Colors.light.strongBg,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 999,
@@ -180,21 +175,21 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   myOrdersButtonText: {
-    color: "#FFFFFF",
+    color: Colors.light.strongText,
     fontWeight: "700",
     fontSize: 12,
   },
   subtitle: {
     marginTop: 6,
     marginBottom: 16,
-    color: "#475569",
+    color: Colors.light.mutedText,
     fontSize: 15,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
     padding: 16,
     marginBottom: 12,
   },
@@ -210,11 +205,11 @@ const styles = StyleSheet.create({
   orderId: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   priority: {
-    backgroundColor: "#ECFEFF",
-    color: "#0E7490",
+    backgroundColor: Colors.light.surfaceAlt,
+    color: Colors.light.strongBg,
     fontSize: 12,
     fontWeight: "700",
     paddingHorizontal: 10,
@@ -227,12 +222,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   metricLabel: {
-    color: "#64748B",
+    color: Colors.light.mutedText,
     fontSize: 12,
     marginBottom: 4,
   },
   metricValue: {
-    color: "#0F172A",
+    color: Colors.light.text,
     fontSize: 18,
     fontWeight: "700",
   },

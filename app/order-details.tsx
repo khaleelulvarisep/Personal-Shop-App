@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { API_BASE_URL } from "@/constants/api";
 import { authFetch } from "@/lib/api-client";
 import { startTracking } from "../services/location";
+import { Colors } from "@/constants/theme";
 
 
 type OrderItem = {
@@ -302,7 +303,7 @@ export default function OrderDetails() {
 // }}
         >
           {accepting ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={Colors.light.strongText} />
           ) : (
             <Text style={styles.primaryButtonText}>Accept Order</Text>
           )}
@@ -321,7 +322,7 @@ export default function OrderDetails() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
   },
   content: {
     paddingHorizontal: 20,
@@ -331,12 +332,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   subtitle: {
     marginTop: 6,
     marginBottom: 16,
-    color: "#475569",
+    color: Colors.light.mutedText,
     fontSize: 15,
   },
   summaryRow: {
@@ -346,34 +347,34 @@ const styles = StyleSheet.create({
   },
   pill: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
     padding: 12,
   },
   pillLabel: {
-    color: "#64748B",
+    color: Colors.light.mutedText,
     fontSize: 12,
     marginBottom: 4,
   },
   pillValue: {
-    color: "#0F172A",
+    color: Colors.light.text,
     fontSize: 18,
     fontWeight: "700",
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
     padding: 16,
     marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0F172A",
+    color: Colors.light.text,
     marginBottom: 10,
   },
   statusRow: {
@@ -383,7 +384,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   statusText: {
-    color: "#475569",
+    color: Colors.light.mutedText,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -424,24 +425,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: Colors.light.border,
   },
   itemName: {
-    color: "#1E293B",
+    color: Colors.light.text,
     fontSize: 15,
     fontWeight: "600",
   },
   itemQty: {
-    color: "#64748B",
+    color: Colors.light.mutedText,
     fontSize: 14,
   },
   itemsText: {
-    color: "#334155",
+    color: Colors.light.text,
     fontSize: 14,
     lineHeight: 20,
   },
   itemsTextMuted: {
-    color: "#64748B",
+    color: Colors.light.mutedText,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -451,7 +452,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   primaryButton: {
-    backgroundColor: "#0EA5E9",
+    backgroundColor: Colors.light.tint,
     borderRadius: 12,
     alignItems: "center",
     paddingVertical: 14,
@@ -463,20 +464,20 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
+    color: Colors.light.strongText,
     fontSize: 16,
     fontWeight: "700",
   },
   secondaryButton: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#CBD5E1",
+    borderColor: Colors.light.border,
     alignItems: "center",
     paddingVertical: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
   },
   secondaryButtonText: {
-    color: "#334155",
+    color: Colors.light.text,
     fontSize: 15,
     fontWeight: "600",
   },

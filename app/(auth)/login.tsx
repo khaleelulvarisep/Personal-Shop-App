@@ -1,9 +1,10 @@
-import { View, Text, TextInput, Pressable } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { useState } from "react";
 import { router } from "expo-router";
 import { API_BASE_URL } from "@/constants/api";
 import * as SecureStore from "expo-secure-store";
 import { setTokens } from "@/lib/auth-tokens";
+import { Colors } from "@/constants/theme";
 
 export default function Login() {
 
@@ -45,30 +46,68 @@ export default function Login() {
   };
 
   return (
-    <View style={{ padding: 30 }}>
-
-      <Text style={{ fontSize: 22 }}>Delivery Login</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Delivery Login</Text>
 
       <TextInput
         placeholder="Username"
         onChangeText={setUsername}
-        style={{ borderWidth: 1, marginTop: 20, padding: 10 }}
+        placeholderTextColor={Colors.light.mutedText}
+        style={styles.input}
       />
 
       <TextInput
         placeholder="Password"
         secureTextEntry
         onChangeText={setPassword}
-        style={{ borderWidth: 1, marginTop: 20, padding: 10 }}
+        placeholderTextColor={Colors.light.mutedText}
+        style={styles.input}
       />
 
       <Pressable
         onPress={login}
-        style={{ backgroundColor: "#0EA5E9", padding: 15, marginTop: 20 }}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
       >
-        <Text style={{ color: "white" }}>Login</Text>
+        <Text style={styles.buttonText}>Login</Text>
       </Pressable>
 
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 30,
+    backgroundColor: Colors.light.background,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: Colors.light.text,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.surface,
+    marginTop: 20,
+    padding: 12,
+    borderRadius: 12,
+    color: Colors.light.text,
+  },
+  button: {
+    backgroundColor: Colors.light.tint,
+    padding: 15,
+    marginTop: 20,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  buttonPressed: {
+    opacity: 0.9,
+  },
+  buttonText: {
+    color: Colors.light.strongText,
+    fontWeight: "800",
+  },
+});

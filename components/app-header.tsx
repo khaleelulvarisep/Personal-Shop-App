@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Colors } from "@/constants/theme";
 
 function getInitial(username: string | null) {
   const trimmed = (username ?? "").trim();
@@ -48,9 +49,9 @@ export function AppHeader({ title }: { title: string }) {
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: Colors.light.border,
   },
   inner: {
     paddingHorizontal: 16,
@@ -62,13 +63,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   avatarButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: Colors.light.tint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -76,7 +77,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   avatarText: {
-    color: "#FFFFFF",
+    color: Colors.light.strongText,
     fontSize: 16,
     fontWeight: "900",
   },

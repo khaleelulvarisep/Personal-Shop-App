@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "
 import { router } from "expo-router";
 
 import { authFetch } from "@/lib/api-client";
+import { Colors } from "@/constants/theme";
 
 type AcceptedOrder = {
   id: number;
@@ -131,43 +132,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
   },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Colors.light.background,
   },
   title: {
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 16,
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   error: {
     color: "#B91C1C",
     marginBottom: 12,
   },
   empty: {
-    color: "#475569",
+    color: Colors.light.mutedText,
     marginTop: 12,
   },
   card: {
     padding: 15,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Colors.light.border,
     borderRadius: 10,
     marginBottom: 15,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.light.surface,
   },
   orderId: {
     fontWeight: "700",
     marginBottom: 6,
-    color: "#0F172A",
+    color: Colors.light.text,
   },
   button: {
-    backgroundColor: "#007AFF",
+    backgroundColor: Colors.light.tint,
     padding: 10,
     marginTop: 10,
     borderRadius: 6,
