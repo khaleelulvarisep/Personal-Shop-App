@@ -8,6 +8,7 @@ import { Colors } from '@/constants/theme';
 import { AppHeader } from '@/components/app-header';
 
 const TITLE_BY_TAB: Record<string, string> = {
+  
   home: 'Home',
   'nearby-orders': 'Orders',
   'accepted-orders': 'My Orders',

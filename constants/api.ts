@@ -4,5 +4,5 @@
 
 
 // export const API_BASE_URL = "http://192.168.0.190:8000";  //home
-export const API_BASE_URL = "http://192.168.220.115:8000";   //hub
+export const API_BASE_URL = "http://192.168.220.94:8000";   //hub
 
