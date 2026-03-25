@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 
 import { authFetch } from "@/lib/api-client";
 import { Colors } from "@/constants/theme";
@@ -29,6 +30,20 @@ export default function AcceptedOrders() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await SecureStore.getItemAsync("user_id");
+      const parsed = stored != null ? Number(stored) : NaN;
+      if (!cancelled) setUserId(Number.isFinite(parsed) ? parsed : null);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const fetchOrders = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     if (mode === "refresh") setRefreshing(true);
@@ -103,24 +118,50 @@ export default function AcceptedOrders() {
             </Text>
             <Text>Status: {item.status ?? "-"}</Text>
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() =>
-                router.push({
-                  pathname: "/order-details",
-                  params: {
-                    id: String(item.id),
-                    ...(item.budget != null ? { budget: String(item.budget) } : {}),
-                    ...(item.urgency ? { urgency: item.urgency } : {}),
-                    ...(item.distance != null ? { distance: String(item.distance) } : {}),
-                    ...(item.items_text ? { items_text: item.items_text } : {}),
-                  },
-                })
-              }
-              style={styles.button}
-            >
-              <Text style={styles.buttonText}>View Order</Text>
-            </Pressable>
+            <View style={styles.actionsRow}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() =>
+                  router.push({
+                    pathname: "/order-details",
+                    params: {
+                      id: String(item.id),
+                      ...(item.budget != null ? { budget: String(item.budget) } : {}),
+                      ...(item.urgency ? { urgency: item.urgency } : {}),
+                      ...(item.distance != null ? { distance: String(item.distance) } : {}),
+                      ...(item.items_text ? { items_text: item.items_text } : {}),
+                    },
+                  })
+                }
+                style={[styles.button, styles.primaryButton]}
+              >
+                <Text style={styles.buttonText}>View Order</Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={userId == null}
+                onPress={() => {
+                  if (userId == null) {
+                    alert("Missing user id. Please logout and login again.");
+                    return;
+                  }
+
+                  router.push({
+                    pathname: "/chat",
+                    params: { orderId: String(item.id), userId: String(userId) },
+                  });
+                }}
+                style={({ pressed }) => [
+                  styles.button,
+                  styles.secondaryButton,
+                  userId == null && styles.disabledButton,
+                  pressed && userId != null && styles.pressedButton,
+                ]}
+              >
+                <Text style={[styles.buttonText, styles.secondaryButtonText]}>Chat</Text>
+              </Pressable>
+            </View>
           </View>
         )}
       />
@@ -167,11 +208,33 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     color: Colors.light.text,
   },
-  button: {
-    backgroundColor: Colors.light.tint,
-    padding: 10,
+  actionsRow: {
+    flexDirection: "row",
+    gap: 10,
     marginTop: 10,
+  },
+  button: {
+    flex: 1,
+    padding: 10,
     borderRadius: 6,
+    alignItems: "center",
+  },
+  primaryButton: {
+    backgroundColor: Colors.light.tint,
+  },
+  secondaryButton: {
+    backgroundColor: Colors.light.surface,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  secondaryButtonText: {
+    color: Colors.light.text,
+  },
+  pressedButton: {
+    opacity: 0.9,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   buttonText: {
     color: "white",

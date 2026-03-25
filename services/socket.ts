@@ -73,7 +73,7 @@
 
 
 
-
+import { API_BASE_URL } from "@/constants/api";
 let socket: WebSocket | null = null;
 let currentDriverId: number | null = null;
 
@@ -82,7 +82,7 @@ export const connectSocket = (driverId: number) => {
   currentDriverId = driverId;
 
   socket = new WebSocket(`ws://192.168.220.94:8000/ws/driver/${driverId}/`);
-
+  // socket = new WebSocket(`ws://192.168.0.190:8000/ws/driver/${driverId}/`);
   socket.onopen = () => {
     console.log("✅ WebSocket connected");
   };
