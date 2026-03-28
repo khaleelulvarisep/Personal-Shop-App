@@ -13,6 +13,21 @@ type OrderItem = {
   qty?: string;
 };
 
+type OrderStatus = "pending" | "accepted" | "shopping" | "on_the_way" | "delivered";
+
+const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "accepted", label: "Accepted" },
+  { value: "shopping", label: "Shopping" },
+  { value: "on_the_way", label: "On The Way" },
+  { value: "delivered", label: "Delivered" },
+];
+
+function statusLabel(status?: string) {
+  const match = ORDER_STATUS_OPTIONS.find((opt) => opt.value === status);
+  return match?.label ?? (status ? status.replace(/_/g, " ") : "--");
+}
+
 type OrderDetailsResponse = {
   id: number;
   delivery_partner?:number;
@@ -21,6 +36,7 @@ type OrderDetailsResponse = {
   distance?: number;
   items?: OrderItem[];
   items_text?: string;
+  status?: string;
 };
 
 export default function OrderDetails() {
@@ -63,6 +79,8 @@ export default function OrderDetails() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
 
   const fetchOrderDetails = async (targetOrderId: number) => {
     setLoading(true);
@@ -77,8 +95,15 @@ export default function OrderDetails() {
       let lastText: string | null = null;
 
       for (const url of candidates) {
-        const res = await fetch(url);
+        const res = await authFetch(url);
         lastStatus = res.status;
+
+        if (res.status === 401) {
+          alert("Session expired. Please login again.");
+          router.replace("/(auth)/login");
+          setLoading(false);
+          return;
+        }
 
         if (!res.ok) {
           lastText = await res.text().catch(() => null);
@@ -111,6 +136,136 @@ export default function OrderDetails() {
     } catch {
       setError("Network error while loading order details.");
       setLoading(false);
+    }
+  };
+
+  const updateOrderStatus = async (targetOrderId: number, nextStatus: OrderStatus): Promise<boolean> => {
+    if (updatingStatus) return false;
+    setUpdatingStatus(true);
+
+    const body = JSON.stringify({ status: nextStatus });
+
+    try {
+      const attempts: { url: string; init: RequestInit }[] = [
+        {
+          url: `/api/orders/order/${targetOrderId}/`,
+          init: { method: "PATCH", headers: { "Content-Type": "application/json" }, body },
+        },
+        {
+          url: `/api/orders/update-status/${targetOrderId}/`,
+          init: { method: "POST", headers: { "Content-Type": "application/json" }, body },
+        },
+        {
+          url: `/api/orders/order/${targetOrderId}/status/`,
+          init: { method: "POST", headers: { "Content-Type": "application/json" }, body },
+        },
+      ];
+
+      let lastStatus: number | null = null;
+      let lastText: string | null = null;
+
+      for (const attempt of attempts) {
+        const res = await authFetch(attempt.url, attempt.init);
+        lastStatus = res.status;
+
+        const contentType = res.headers.get("content-type") ?? "";
+        const payload = contentType.includes("application/json")
+          ? await res.json().catch(() => null)
+          : await res.text().catch(() => null);
+
+        if (res.status === 401) {
+          alert("Session expired. Please login again.");
+          router.replace("/(auth)/login");
+          return false;
+        }
+
+        if (!res.ok) {
+          lastText =
+            (typeof payload === "string" && payload.trim() ? payload : null) ??
+            (payload && typeof payload === "object" && "detail" in payload && typeof payload.detail === "string"
+              ? payload.detail
+              : null) ??
+            null;
+          continue;
+        }
+
+        if (payload && typeof payload === "object") {
+          setOrder((current) => (current ? { ...current, ...(payload as Partial<OrderDetailsResponse>) } : current));
+        } else {
+          setOrder((current) => (current ? { ...current, status: nextStatus } : current));
+        }
+
+        alert(`Status updated to ${statusLabel(nextStatus)}.`);
+        return true;
+      }
+
+      alert(
+        `Could not update status. Last response: ${lastStatus ?? "?"}${lastText ? ` (${lastText})` : ""}`
+      );
+      return false;
+    } catch {
+      alert("Network error while updating status.");
+      return false;
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const sendOtpToCustomer = async (targetOrderId: number): Promise<boolean> => {
+    if (sendingOtp) return false;
+    setSendingOtp(true);
+
+    try {
+      const attempts: { url: string; init: RequestInit }[] = [
+        { url: `/api/orders/order/${targetOrderId}/send-otp/`, init: { method: "POST" } },
+        { url: `/api/orders/send-otp/${targetOrderId}/`, init: { method: "POST" } },
+        { url: `/api/orders/send_otp/${targetOrderId}/`, init: { method: "POST" } },
+      ];
+
+      let lastStatus: number | null = null;
+      let lastText: string | null = null;
+
+      for (const attempt of attempts) {
+        const res = await authFetch(attempt.url, attempt.init);
+        lastStatus = res.status;
+
+        const contentType = res.headers.get("content-type") ?? "";
+        const payload = contentType.includes("application/json")
+          ? await res.json().catch(() => null)
+          : await res.text().catch(() => null);
+
+        if (res.status === 401) {
+          alert("Session expired. Please login again.");
+          router.replace("/(auth)/login");
+          return false;
+        }
+
+        if (!res.ok) {
+          lastText =
+            (typeof payload === "string" && payload.trim() ? payload : null) ??
+            (payload && typeof payload === "object" && "detail" in payload && typeof payload.detail === "string"
+              ? payload.detail
+              : null) ??
+            null;
+          continue;
+        }
+
+        const message =
+          (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
+            ? payload.message
+            : null) ?? "OTP sent to customer.";
+
+        alert(message);
+        return true;
+      }
+
+      alert(`Could not send OTP. Last response: ${lastStatus ?? "?"}${lastText ? ` (${lastText})` : ""}`);
+      return false;
+    } catch {
+      alert("Network error while sending OTP.");
+      return false;
+    } finally {
+      setSendingOtp(false);
     }
   };
 
@@ -261,6 +416,54 @@ export default function OrderDetails() {
                 <Text style={styles.itemsText}>{order.items_text}</Text>
               ) : (
                 <Text style={styles.itemsTextMuted}>No items provided.</Text>
+              )}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Delivery Status</Text>
+              <Text style={styles.statusCurrentText}>Current: {statusLabel(order.status)}</Text>
+
+              <View style={styles.statusButtonsWrap}>
+                {ORDER_STATUS_OPTIONS.map((opt) => {
+                  const selected = opt.value === order.status;
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      accessibilityRole="button"
+                      disabled={loading || updatingStatus || selected}
+                      onPress={() => updateOrderStatus(order.id, opt.value)}
+                      style={({ pressed }) => [
+                        styles.statusButton,
+                        selected && styles.statusButtonSelected,
+                        (loading || updatingStatus) && styles.statusButtonDisabled,
+                        pressed && !(loading || updatingStatus || selected) && styles.statusButtonPressed,
+                      ]}
+                    >
+                      <Text style={[styles.statusButtonText, selected && styles.statusButtonTextSelected]}>
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {order.status === "on_the_way" && (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={sendingOtp || loading}
+                  onPress={() => sendOtpToCustomer(order.id)}
+                  style={({ pressed }) => [
+                    styles.otpButton,
+                    (sendingOtp || loading) && styles.otpButtonDisabled,
+                    pressed && !(sendingOtp || loading) && styles.otpButtonPressed,
+                  ]}
+                >
+                  {sendingOtp ? (
+                    <ActivityIndicator color={Colors.light.strongText} />
+                  ) : (
+                    <Text style={styles.otpButtonText}>Send OTP</Text>
+                  )}
+                </Pressable>
               )}
             </View>
 
@@ -445,6 +648,61 @@ const styles = StyleSheet.create({
     color: Colors.light.mutedText,
     fontSize: 14,
     lineHeight: 20,
+  },
+  statusCurrentText: {
+    color: Colors.light.mutedText,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  statusButtonsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  statusButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.surface,
+  },
+  statusButtonSelected: {
+    borderColor: Colors.light.tint,
+    backgroundColor: Colors.light.tint,
+  },
+  statusButtonPressed: {
+    opacity: 0.9,
+  },
+  statusButtonDisabled: {
+    opacity: 0.6,
+  },
+  statusButtonText: {
+    color: Colors.light.text,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  statusButtonTextSelected: {
+    color: Colors.light.strongText,
+  },
+  otpButton: {
+    marginTop: 14,
+    backgroundColor: Colors.light.strongBg,
+    borderRadius: 12,
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  otpButtonPressed: {
+    opacity: 0.9,
+  },
+  otpButtonDisabled: {
+    opacity: 0.6,
+  },
+  otpButtonText: {
+    color: Colors.light.strongText,
+    fontSize: 15,
+    fontWeight: "800",
   },
   actions: {
     paddingHorizontal: 20,
