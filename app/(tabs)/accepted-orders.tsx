@@ -21,7 +21,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeOrders(payload: unknown): AcceptedOrder[] {
   if (Array.isArray(payload)) return payload as AcceptedOrder[];
-  if (isRecord(payload) && Array.isArray(payload.results)) return payload.results as AcceptedOrder[];
+
+  if (isRecord(payload)) {
+    if (Array.isArray(payload.results)) return payload.results as AcceptedOrder[];
+    if (Array.isArray(payload.data)) return payload.data as AcceptedOrder[];
+  }
+
   return [];
 }
 
@@ -52,7 +57,7 @@ export default function AcceptedOrders() {
     setError(null);
 
     try {
-      const response = await authFetch("/api/orders/driver/orders/");
+      const response = await authFetch("/api/orders/orders/?role=driver");
 
       if (response.status === 401) {
         setOrders([]);

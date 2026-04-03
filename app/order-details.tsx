@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { API_BASE_URL } from "@/constants/api";
 import { authFetch } from "@/lib/api-client";
@@ -13,15 +13,25 @@ type OrderItem = {
   qty?: string;
 };
 
-type OrderStatus = "pending" | "accepted" | "shopping" | "on_the_way" | "delivered";
+type OrderStatus = "pending" | "accepted" | "shopping" | "on_the_way" | "arrived" | "delivered";
 
 const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: "pending", label: "Pending" },
   { value: "accepted", label: "Accepted" },
   { value: "shopping", label: "Shopping" },
   { value: "on_the_way", label: "On The Way" },
+  { value: "arrived", label: "Arrived" },
   { value: "delivered", label: "Delivered" },
 ];
+
+const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pending: ["accepted"],
+  accepted: ["shopping"],
+  shopping: ["on_the_way"],
+  on_the_way: ["arrived"],
+  arrived: [],
+  delivered: [],
+};
 
 function statusLabel(status?: string) {
   const match = ORDER_STATUS_OPTIONS.find((opt) => opt.value === status);
@@ -30,13 +40,15 @@ function statusLabel(status?: string) {
 
 type OrderDetailsResponse = {
   id: number;
-  delivery_partner?:number;
+  delivery_partner?: number;
   budget?: number;
   urgency?: string;
   distance?: number;
   items?: OrderItem[];
   items_text?: string;
   status?: string;
+  otp?: string | null;
+  is_delivered?: boolean;
 };
 
 export default function OrderDetails() {
@@ -80,7 +92,68 @@ export default function OrderDetails() {
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpInput, setOtpInput] = useState("");
+
+  const extractErrorOrMessage = (payload: unknown): string | null => {
+    if (typeof payload === "string") return payload.trim() ? payload : null;
+    if (!payload || typeof payload !== "object") return null;
+
+    const asObj = payload as Record<string, unknown>;
+    const candidates = ["error", "detail", "message"];
+    for (const key of candidates) {
+      const value = asObj[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+    return null;
+  };
+
+  const postOrderAction = async (
+    targetOrderId: number,
+    body: Record<string, unknown>
+  ): Promise<{ ok: boolean; status: number; payload: unknown | null }> => {
+    const attempts: string[] = [
+      `/api/orders/${targetOrderId}/action/`,
+      `/api/orders/action/${targetOrderId}/`,
+      `/api/orders/order-action/${targetOrderId}/`,
+      `/api/orders/order/${targetOrderId}/action/`,
+      `/api/orders/orders/${targetOrderId}/action/`,
+    ];
+
+    let lastStatus = 0;
+    let lastPayload: unknown | null = null;
+
+    for (const url of attempts) {
+      const res = await authFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      lastStatus = res.status;
+
+      if (res.status === 401) {
+        return { ok: false, status: 401, payload: null };
+      }
+
+      const contentType = res.headers.get("content-type") ?? "";
+      const payload = contentType.includes("application/json")
+        ? await res.json().catch(() => null)
+        : await res.text().catch(() => null);
+
+      lastPayload = payload;
+
+      if (!res.ok) {
+        // Try next candidate if this endpoint isn't found.
+        if (res.status === 404) continue;
+        return { ok: false, status: res.status, payload };
+      }
+
+      return { ok: true, status: res.status, payload };
+    }
+
+    return { ok: false, status: lastStatus || 404, payload: lastPayload };
+  };
 
   const fetchOrderDetails = async (targetOrderId: number) => {
     setLoading(true);
@@ -143,66 +216,27 @@ export default function OrderDetails() {
     if (updatingStatus) return false;
     setUpdatingStatus(true);
 
-    const body = JSON.stringify({ status: nextStatus });
-
     try {
-      const attempts: { url: string; init: RequestInit }[] = [
-        {
-          url: `/api/orders/order/${targetOrderId}/`,
-          init: { method: "PATCH", headers: { "Content-Type": "application/json" }, body },
-        },
-        {
-          url: `/api/orders/update-status/${targetOrderId}/`,
-          init: { method: "POST", headers: { "Content-Type": "application/json" }, body },
-        },
-        {
-          url: `/api/orders/order/${targetOrderId}/status/`,
-          init: { method: "POST", headers: { "Content-Type": "application/json" }, body },
-        },
-      ];
+      const result = await postOrderAction(targetOrderId, { action: "update_status", status: nextStatus });
 
-      let lastStatus: number | null = null;
-      let lastText: string | null = null;
-
-      for (const attempt of attempts) {
-        const res = await authFetch(attempt.url, attempt.init);
-        lastStatus = res.status;
-
-        const contentType = res.headers.get("content-type") ?? "";
-        const payload = contentType.includes("application/json")
-          ? await res.json().catch(() => null)
-          : await res.text().catch(() => null);
-
-        if (res.status === 401) {
-          alert("Session expired. Please login again.");
-          router.replace("/(auth)/login");
-          return false;
-        }
-
-        if (!res.ok) {
-          lastText =
-            (typeof payload === "string" && payload.trim() ? payload : null) ??
-            (payload && typeof payload === "object" && "detail" in payload && typeof payload.detail === "string"
-              ? payload.detail
-              : null) ??
-            null;
-          continue;
-        }
-
-        if (payload && typeof payload === "object") {
-          setOrder((current) => (current ? { ...current, ...(payload as Partial<OrderDetailsResponse>) } : current));
-        } else {
-          setOrder((current) => (current ? { ...current, status: nextStatus } : current));
-        }
-
-        alert(`Status updated to ${statusLabel(nextStatus)}.`);
-        return true;
+      if (result.status === 401) {
+        alert("Session expired. Please login again.");
+        router.replace("/(auth)/login");
+        return false;
       }
 
-      alert(
-        `Could not update status. Last response: ${lastStatus ?? "?"}${lastText ? ` (${lastText})` : ""}`
-      );
-      return false;
+      if (!result.ok) {
+        const message =
+          extractErrorOrMessage(result.payload) ?? `Could not update status. (${result.status || "?"})`;
+        alert(message);
+        return false;
+      }
+
+      setOrder((current) => (current ? { ...current, status: nextStatus } : current));
+
+      const message = extractErrorOrMessage(result.payload) ?? `Updated to ${statusLabel(nextStatus)}.`;
+      alert(message);
+      return true;
     } catch {
       alert("Network error while updating status.");
       return false;
@@ -211,61 +245,42 @@ export default function OrderDetails() {
     }
   };
 
-  const sendOtpToCustomer = async (targetOrderId: number): Promise<boolean> => {
-    if (sendingOtp) return false;
-    setSendingOtp(true);
+  const verifyOtp = async (targetOrderId: number, otp: string): Promise<boolean> => {
+    if (verifyingOtp) return false;
+    const trimmed = otp.trim();
+    if (!trimmed) {
+      alert("Enter the OTP from the customer.");
+      return false;
+    }
+
+    setVerifyingOtp(true);
 
     try {
-      const attempts: { url: string; init: RequestInit }[] = [
-        { url: `/api/orders/order/${targetOrderId}/send-otp/`, init: { method: "POST" } },
-        { url: `/api/orders/send-otp/${targetOrderId}/`, init: { method: "POST" } },
-        { url: `/api/orders/send_otp/${targetOrderId}/`, init: { method: "POST" } },
-      ];
+      const result = await postOrderAction(targetOrderId, { action: "verify_otp", otp: trimmed });
 
-      let lastStatus: number | null = null;
-      let lastText: string | null = null;
-
-      for (const attempt of attempts) {
-        const res = await authFetch(attempt.url, attempt.init);
-        lastStatus = res.status;
-
-        const contentType = res.headers.get("content-type") ?? "";
-        const payload = contentType.includes("application/json")
-          ? await res.json().catch(() => null)
-          : await res.text().catch(() => null);
-
-        if (res.status === 401) {
-          alert("Session expired. Please login again.");
-          router.replace("/(auth)/login");
-          return false;
-        }
-
-        if (!res.ok) {
-          lastText =
-            (typeof payload === "string" && payload.trim() ? payload : null) ??
-            (payload && typeof payload === "object" && "detail" in payload && typeof payload.detail === "string"
-              ? payload.detail
-              : null) ??
-            null;
-          continue;
-        }
-
-        const message =
-          (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
-            ? payload.message
-            : null) ?? "OTP sent to customer.";
-
-        alert(message);
-        return true;
+      if (result.status === 401) {
+        alert("Session expired. Please login again.");
+        router.replace("/(auth)/login");
+        return false;
       }
 
-      alert(`Could not send OTP. Last response: ${lastStatus ?? "?"}${lastText ? ` (${lastText})` : ""}`);
-      return false;
+      if (!result.ok) {
+        const message = extractErrorOrMessage(result.payload) ?? `OTP verification failed. (${result.status || "?"})`;
+        alert(message);
+        return false;
+      }
+
+      setOtpInput("");
+      setOrder((current) => (current ? { ...current, status: "delivered", is_delivered: true } : current));
+
+      const message = extractErrorOrMessage(result.payload) ?? "Delivered successfully.";
+      alert(message);
+      return true;
     } catch {
-      alert("Network error while sending OTP.");
+      alert("Network error while verifying OTP.");
       return false;
     } finally {
-      setSendingOtp(false);
+      setVerifyingOtp(false);
     }
   };
 
@@ -296,7 +311,7 @@ export default function OrderDetails() {
     fetchOrderDetails(orderId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, prefillOrder]);
-  
+
 
 
 
@@ -305,9 +320,28 @@ export default function OrderDetails() {
     setAccepting(true);
 
     try {
-      const response = await authFetch(`/api/orders/accept/${targetOrderId}/`, {
-        method: "POST",
-      });
+      const result = await postOrderAction(targetOrderId, { action: "accept" });
+
+      if (result.status === 401) {
+        alert("Session expired. Please login again.");
+        router.replace("/(auth)/login");
+        return false;
+      }
+
+      if (result.ok) {
+        setOrder((current) =>
+          current
+            ? { ...current, status: "accepted", delivery_partner: userId ?? current.delivery_partner }
+            : current
+        );
+
+        const message = extractErrorOrMessage(result.payload) ?? "Order accepted.";
+        alert(message);
+        return true;
+      }
+
+      // Fallback to older accept endpoint if the action endpoint isn't wired yet.
+      const response = await authFetch(`/api/orders/accept/${targetOrderId}/`, { method: "POST" });
 
       const contentType = response.headers.get("content-type") ?? "";
       const payload = contentType.includes("application/json")
@@ -321,22 +355,17 @@ export default function OrderDetails() {
       }
 
       if (!response.ok) {
-        const message =
-          (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
-            ? payload.message
-            : null) ??
-          (typeof payload === "string" && payload.trim() ? payload : null) ??
-          `Failed to accept order. (${response.status})`;
-        alert(message);
+        alert(extractErrorOrMessage(payload) ?? `Failed to accept order. (${response.status})`);
         return false;
       }
 
-      const message =
-        (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
-          ? payload.message
-          : null) ?? "Order accepted.";
+      setOrder((current) =>
+        current
+          ? { ...current, status: "accepted", delivery_partner: userId ?? current.delivery_partner }
+          : current
+      );
 
-      alert(message);
+      alert(extractErrorOrMessage(payload) ?? "Order accepted.");
       return true;
     } catch {
       alert("Network error while accepting the order.");
@@ -423,48 +452,89 @@ export default function OrderDetails() {
               <Text style={styles.sectionTitle}>Delivery Status</Text>
               <Text style={styles.statusCurrentText}>Current: {statusLabel(order.status)}</Text>
 
-              <View style={styles.statusButtonsWrap}>
-                {ORDER_STATUS_OPTIONS.map((opt) => {
-                  const selected = opt.value === order.status;
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      accessibilityRole="button"
-                      disabled={loading || updatingStatus || selected}
-                      onPress={() => updateOrderStatus(order.id, opt.value)}
-                      style={({ pressed }) => [
-                        styles.statusButton,
-                        selected && styles.statusButtonSelected,
-                        (loading || updatingStatus) && styles.statusButtonDisabled,
-                        pressed && !(loading || updatingStatus || selected) && styles.statusButtonPressed,
-                      ]}
-                    >
-                      <Text style={[styles.statusButtonText, selected && styles.statusButtonTextSelected]}>
-                        {opt.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              {(() => {
+                const currentStatus = (order.status as OrderStatus | undefined) ?? "pending";
+                const isAssignedDriver = userId != null && order.delivery_partner === userId;
+                const nextOptions = VALID_TRANSITIONS[currentStatus] ?? [];
 
-              {order.status === "on_the_way" && (
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={sendingOtp || loading}
-                  onPress={() => sendOtpToCustomer(order.id)}
-                  style={({ pressed }) => [
-                    styles.otpButton,
-                    (sendingOtp || loading) && styles.otpButtonDisabled,
-                    pressed && !(sendingOtp || loading) && styles.otpButtonPressed,
-                  ]}
-                >
-                  {sendingOtp ? (
-                    <ActivityIndicator color={Colors.light.strongText} />
-                  ) : (
-                    <Text style={styles.otpButtonText}>Send OTP</Text>
-                  )}
-                </Pressable>
-              )}
+                if (!isAssignedDriver && currentStatus !== "pending") {
+                  return (
+                    <Text style={styles.itemsTextMuted}>
+                      Only the assigned driver can update this order.
+                    </Text>
+                  );
+                }
+
+                if (currentStatus === "pending") {
+                  return (
+                    <Text style={styles.itemsTextMuted}>
+                      Accept the order to start updating delivery status.
+                    </Text>
+                  );
+                }
+
+                return (
+                  <>
+                    {nextOptions.length > 0 ? (
+                      <View style={styles.statusButtonsWrap}>
+                        {nextOptions.map((next) => {
+                          const label = statusLabel(next);
+                          return (
+                            <Pressable
+                              key={next}
+                              accessibilityRole="button"
+                              disabled={loading || updatingStatus}
+                              onPress={() => updateOrderStatus(order.id, next)}
+                              style={({ pressed }) => [
+                                styles.statusButton,
+                                (loading || updatingStatus) && styles.statusButtonDisabled,
+                                pressed && !(loading || updatingStatus) && styles.statusButtonPressed,
+                              ]}
+                            >
+                              <Text style={styles.statusButtonText}>{`Move to ${label}`}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <Text style={styles.itemsTextMuted}>No further status updates available.</Text>
+                    )}
+
+                    {currentStatus === "arrived" && (
+                      <View style={styles.otpCard}>
+                        <Text style={styles.otpTitle}>Customer OTP</Text>
+                        <Text style={styles.itemsTextMuted}>
+                          Ask the customer for the 6-digit OTP and verify to mark as delivered.
+                        </Text>
+                        <TextInput
+                          value={otpInput}
+                          onChangeText={setOtpInput}
+                          placeholder="Enter OTP"
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          style={styles.otpInput}
+                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={verifyingOtp || loading}
+                          onPress={() => verifyOtp(order.id, otpInput)}
+                          style={({ pressed }) => [
+                            styles.otpButton,
+                            (verifyingOtp || loading) && styles.otpButtonDisabled,
+                            pressed && !(verifyingOtp || loading) && styles.otpButtonPressed,
+                          ]}
+                        >
+                          {verifyingOtp ? (
+                            <ActivityIndicator color={Colors.light.strongText} />
+                          ) : (
+                            <Text style={styles.otpButtonText}>Verify OTP</Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
             </View>
 
         
@@ -473,28 +543,27 @@ export default function OrderDetails() {
       </ScrollView>
 
       <View style={styles.actions}>
-        <Pressable
-          disabled={!order || loading || accepting}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            (!order || loading || accepting) && styles.primaryButtonDisabled,
-            pressed && !(!order || loading || accepting) && styles.primaryButtonPressed,
-          ]}
-          onPress={async () => {
-            if (!order) return;
+        {order && (order.status as OrderStatus | undefined) === "pending" && (
+          <Pressable
+            disabled={loading || accepting}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              (loading || accepting) && styles.primaryButtonDisabled,
+              pressed && !(loading || accepting) && styles.primaryButtonPressed,
+            ]}
+            onPress={async () => {
+              const accepted = await acceptOrder(order.id);
+              if (!accepted) return;
 
-            const accepted = await acceptOrder(order.id);
-            if (!accepted) return;
+              if (userId == null) {
+                alert("Could not start tracking: missing user id.");
+                router.replace("/(tabs)/nearby-orders");
+                return;
+              }
 
-            if (userId == null) {
-              alert("Could not start tracking: missing user id.");
+              void startTracking(userId);
               router.replace("/(tabs)/nearby-orders");
-              return;
-            }
-
-            void startTracking(userId);
-            router.replace("/(tabs)/nearby-orders");
-          }}
+            }}
 //           onPress={async () => {
 //   if (!order) return;
 
@@ -504,13 +573,14 @@ export default function OrderDetails() {
 
 //   await acceptOrder(order.id);
 // }}
-        >
-          {accepting ? (
-            <ActivityIndicator color={Colors.light.strongText} />
-          ) : (
-            <Text style={styles.primaryButtonText}>Accept Order</Text>
-          )}
-        </Pressable>
+          >
+            {accepting ? (
+              <ActivityIndicator color={Colors.light.strongText} />
+            ) : (
+              <Text style={styles.primaryButtonText}>Accept Order</Text>
+            )}
+          </Pressable>
+        )}
         <Pressable
           style={styles.secondaryButton}
           onPress={() => router.replace("/(tabs)/nearby-orders")}
@@ -692,6 +762,33 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     paddingVertical: 12,
+  },
+  otpCard: {
+    marginTop: 14,
+    backgroundColor: Colors.light.background,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: 12,
+  },
+  otpTitle: {
+    color: Colors.light.text,
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  otpInput: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: Colors.light.surface,
+    color: Colors.light.text,
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 2,
   },
   otpButtonPressed: {
     opacity: 0.9,
