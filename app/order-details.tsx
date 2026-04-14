@@ -9,11 +9,16 @@ import { Colors } from "@/constants/theme";
 
 
 type OrderItem = {
+  id?: number;
   name: string;
   qty?: string;
+  quantity?: number;
+  price?: string | number | null;
 };
 
 type OrderStatus = "pending" | "accepted" | "shopping" | "on_the_way" | "arrived" | "delivered";
+
+const ORDER_STATUS_FLOW: OrderStatus[] = ["pending", "accepted", "shopping", "on_the_way", "arrived", "delivered"];
 
 const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: "pending", label: "Pending" },
@@ -38,16 +43,42 @@ function statusLabel(status?: string) {
   return match?.label ?? (status ? status.replace(/_/g, " ") : "--");
 }
 
+function reachedStatus(current: OrderStatus | undefined, target: OrderStatus) {
+  const currentIndex = current ? ORDER_STATUS_FLOW.indexOf(current) : -1;
+  const targetIndex = ORDER_STATUS_FLOW.indexOf(target);
+  if (targetIndex < 0) return false;
+  return currentIndex >= targetIndex;
+}
+
+function asNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatMoney(amount: number | null | undefined) {
+  if (amount == null || !Number.isFinite(amount)) return "--";
+  return `\u20B9${amount.toFixed(2)}`;
+}
+
 type OrderDetailsResponse = {
   id: number;
   delivery_partner?: number;
   budget?: number;
+  platform_fee?: number | string;
+  delivery_fee?: number | string;
+  total_amount?: number | string;
   urgency?: string;
   distance?: number;
   items?: OrderItem[];
   items_text?: string;
   status?: string;
   otp?: string | null;
+  payment_status?: string;
+  payment_method?: string | null;
   is_delivered?: boolean;
 };
 
@@ -92,8 +123,12 @@ export default function OrderDetails() {
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpInput, setOtpInput] = useState("");
+  const [showPaymentMethods, setShowPaymentMethods] = useState(false);
+  const [editingItemPrices, setEditingItemPrices] = useState<Record<string, string>>({});
+  const [savingItemPriceId, setSavingItemPriceId] = useState<number | null>(null);
 
   const extractErrorOrMessage = (payload: unknown): string | null => {
     if (typeof payload === "string") return payload.trim() ? payload : null;
@@ -245,6 +280,109 @@ export default function OrderDetails() {
     }
   };
 
+  const updateItemPrice = async (targetOrderId: number, itemId: number, rawPrice: string): Promise<boolean> => {
+    if (savingItemPriceId != null) return false;
+
+    const trimmed = rawPrice.trim();
+    if (!trimmed) {
+      alert("Enter a price for this item.");
+      return false;
+    }
+
+    const normalized = trimmed.replace(/,/g, "");
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      alert("Enter a valid price (e.g. 12.50).");
+      return false;
+    }
+
+    setSavingItemPriceId(itemId);
+
+    try {
+      const result = await postOrderAction(targetOrderId, {
+        action: "update_item_price",
+        item_id: itemId,
+        price: normalized,
+      });
+
+      if (result.status === 401) {
+        alert("Session expired. Please login again.");
+        router.replace("/(auth)/login");
+        return false;
+      }
+
+      if (!result.ok) {
+        const message =
+          extractErrorOrMessage(result.payload) ?? `Could not update item price. (${result.status || "?"})`;
+        alert(message);
+        return false;
+      }
+
+      setOrder((current) => {
+        if (!current?.items) return current;
+        return {
+          ...current,
+          items: current.items.map((it) => (it.id === itemId ? { ...it, price: normalized } : it)),
+        };
+      });
+
+      const message = extractErrorOrMessage(result.payload) ?? "Item price updated.";
+      alert(message);
+      return true;
+    } catch {
+      alert("Network error while updating item price.");
+      return false;
+    } finally {
+      setSavingItemPriceId(null);
+    }
+  };
+
+  const markPaymentReceived = async (
+    targetOrderId: number,
+    method: "cash" | "upi"
+  ): Promise<boolean> => {
+    if (markingPaid) return false;
+    setMarkingPaid(true);
+
+    try {
+      const result = await postOrderAction(targetOrderId, { action: "mark_paid", payment_method: method });
+
+      if (result.status === 401) {
+        alert("Session expired. Please login again.");
+        router.replace("/(auth)/login");
+        return false;
+      }
+
+      if (!result.ok) {
+        const message =
+          extractErrorOrMessage(result.payload) ?? `Could not mark payment received. (${result.status || "?"})`;
+        alert(message);
+        return false;
+      }
+
+      setShowPaymentMethods(false);
+
+      setOrder((current) =>
+        current
+          ? {
+              ...current,
+              payment_status: "paid",
+              payment_method: method,
+            }
+          : current
+      );
+
+      const message = extractErrorOrMessage(result.payload) ?? "Payment received.";
+      alert(message);
+      return true;
+    } catch {
+      alert("Network error while marking payment received.");
+      return false;
+    } finally {
+      setMarkingPaid(false);
+    }
+  };
+
   const verifyOtp = async (targetOrderId: number, otp: string): Promise<boolean> => {
     if (verifyingOtp) return false;
     const trimmed = otp.trim();
@@ -311,6 +449,38 @@ export default function OrderDetails() {
     fetchOrderDetails(orderId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, prefillOrder]);
+
+  useEffect(() => {
+    if (!order) return;
+    const status = (order.status as OrderStatus | undefined) ?? "pending";
+    const paid = (order.payment_status ?? "").toLowerCase() === "paid";
+
+    if (status !== "arrived") {
+      setShowPaymentMethods(false);
+      return;
+    }
+
+    if (paid) {
+      setShowPaymentMethods(false);
+    }
+  }, [order]);
+
+  useEffect(() => {
+    if (!order?.items) return;
+
+    setEditingItemPrices((current) => {
+      const next = { ...current };
+
+      for (const item of order.items ?? []) {
+        if (item.id == null) continue;
+        const key = String(item.id);
+        if (next[key] != null) continue;
+        next[key] = item.price == null ? "" : String(item.price);
+      }
+
+      return next;
+    });
+  }, [order?.items]);
 
 
 
@@ -431,22 +601,134 @@ export default function OrderDetails() {
               </View>
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Items</Text>
+            {(() => {
+              const currentStatus = (order.status as OrderStatus | undefined) ?? "pending";
+              if (!reachedStatus(currentStatus, "shopping")) return null;
 
-              {Array.isArray(order.items) && order.items.length > 0 ? (
-                order.items.map((item, idx) => (
-                  <View key={`${item.name}-${idx}`} style={styles.itemRow}>
-                    <Text style={styles.itemName}>{item.name}</Text>
-                    <Text style={styles.itemQty}>{item.qty ?? ""}</Text>
+              const platformFee = asNumber(order.platform_fee);
+              const deliveryFee = asNumber(order.delivery_fee);
+              const backendTotal = asNumber(order.total_amount);
+
+              const itemsTotal =
+                Array.isArray(order.items) && order.items.length > 0
+                  ? order.items.reduce((sum, item) => sum + (asNumber(item.price) ?? 0), 0)
+                  : null;
+
+              const computedTotal =
+                itemsTotal != null && platformFee != null && deliveryFee != null
+                  ? itemsTotal + platformFee + deliveryFee
+                  : null;
+
+              const totalToShow = backendTotal ?? computedTotal;
+
+              return (
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>Charges</Text>
+                  <View style={styles.chargeRow}>
+                    <Text style={styles.chargeLabel}>Platform fee</Text>
+                    <Text style={styles.chargeValue}>{formatMoney(platformFee)}</Text>
                   </View>
-                ))
-              ) : order.items_text ? (
-                <Text style={styles.itemsText}>{order.items_text}</Text>
-              ) : (
-                <Text style={styles.itemsTextMuted}>No items provided.</Text>
-              )}
-            </View>
+                  <View style={styles.chargeRow}>
+                    <Text style={styles.chargeLabel}>Delivery fee</Text>
+                    <Text style={styles.chargeValue}>{formatMoney(deliveryFee)}</Text>
+                  </View>
+                  <View style={[styles.chargeRow, styles.chargeRowLast]}>
+                    <Text style={styles.chargeLabel}>Total amount</Text>
+                    <Text style={styles.chargeValue}>{formatMoney(totalToShow)}</Text>
+                  </View>
+                </View>
+              );
+            })()}
+
+            {(() => {
+              const currentStatus = (order.status as OrderStatus | undefined) ?? "pending";
+              const isAssignedDriver = userId != null && order.delivery_partner === userId;
+              const canEditItemPrices = currentStatus === "shopping" && isAssignedDriver;
+
+              return (
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>Items</Text>
+
+                  {Array.isArray(order.items) && order.items.length > 0 ? (
+                    order.items.map((item, idx) => {
+                      const quantity = item.quantity ?? (item.qty ? Number(item.qty) : undefined);
+                      const displayQty = Number.isFinite(quantity) ? `x${quantity}` : item.qty ?? "";
+                      const hasId = typeof item.id === "number";
+                      const itemId = item.id ?? -1;
+                      const draftKey = hasId ? String(itemId) : "";
+                      const draftPrice = hasId ? (editingItemPrices[draftKey] ?? "") : "";
+                      const isSaving = savingItemPriceId === itemId;
+                      const priceLabel =
+                        item.price == null || item.price === "" ? null : `\u20B9${item.price}`;
+
+                      return (
+                        <View key={`${hasId ? itemId : item.name}-${idx}`} style={styles.itemRow}>
+                          <View style={styles.itemLeft}>
+                            <Text style={styles.itemName}>{item.name}</Text>
+                            <Text style={styles.itemQty}>{displayQty}</Text>
+                          </View>
+
+                          <View style={styles.itemRight}>
+                            {!canEditItemPrices && priceLabel && (
+                              <Text style={styles.itemPriceText}>{priceLabel}</Text>
+                            )}
+
+                            {canEditItemPrices && (
+                              <View style={styles.priceEditor}>
+                                <TextInput
+                                  value={draftPrice}
+                                  onChangeText={(text) =>
+                                    setEditingItemPrices((current) => ({ ...current, [draftKey]: text }))
+                                  }
+                                  placeholder="Price"
+                                  keyboardType="decimal-pad"
+                                  style={styles.priceInput}
+                                  editable={!isSaving}
+                                />
+                                <Pressable
+                                  accessibilityRole="button"
+                                  disabled={!hasId || isSaving || !draftPrice.trim()}
+                                  onPress={() => {
+                                    if (!hasId) {
+                                      alert("This item is missing an id from the backend.");
+                                      return;
+                                    }
+                                    void updateItemPrice(order.id, itemId, draftPrice);
+                                  }}
+                                  style={({ pressed }) => [
+                                    styles.priceSaveButton,
+                                    (!hasId || isSaving || !draftPrice.trim()) && styles.priceSaveButtonDisabled,
+                                    pressed &&
+                                      !(!hasId || isSaving || !draftPrice.trim()) &&
+                                      styles.priceSaveButtonPressed,
+                                  ]}
+                                >
+                                  {isSaving ? (
+                                    <ActivityIndicator color={Colors.light.strongText} />
+                                  ) : (
+                                    <Text style={styles.priceSaveButtonText}>Save</Text>
+                                  )}
+                                </Pressable>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    })
+                  ) : order.items_text ? (
+                    <Text style={styles.itemsText}>{order.items_text}</Text>
+                  ) : (
+                    <Text style={styles.itemsTextMuted}>No items provided.</Text>
+                  )}
+
+                  {((order.status as OrderStatus | undefined) ?? "pending") === "shopping" && !canEditItemPrices && (
+                    <Text style={styles.itemsTextMuted}>
+                      Only the assigned driver can enter item prices during shopping.
+                    </Text>
+                  )}
+                </View>
+              );
+            })()}
 
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Delivery Status</Text>
@@ -502,34 +784,105 @@ export default function OrderDetails() {
 
                     {currentStatus === "arrived" && (
                       <View style={styles.otpCard}>
-                        <Text style={styles.otpTitle}>Customer OTP</Text>
-                        <Text style={styles.itemsTextMuted}>
-                          Ask the customer for the 6-digit OTP and verify to mark as delivered.
-                        </Text>
-                        <TextInput
-                          value={otpInput}
-                          onChangeText={setOtpInput}
-                          placeholder="Enter OTP"
-                          keyboardType="number-pad"
-                          maxLength={6}
-                          style={styles.otpInput}
-                        />
-                        <Pressable
-                          accessibilityRole="button"
-                          disabled={verifyingOtp || loading}
-                          onPress={() => verifyOtp(order.id, otpInput)}
-                          style={({ pressed }) => [
-                            styles.otpButton,
-                            (verifyingOtp || loading) && styles.otpButtonDisabled,
-                            pressed && !(verifyingOtp || loading) && styles.otpButtonPressed,
-                          ]}
-                        >
-                          {verifyingOtp ? (
-                            <ActivityIndicator color={Colors.light.strongText} />
-                          ) : (
-                            <Text style={styles.otpButtonText}>Verify OTP</Text>
-                          )}
-                        </Pressable>
+                        {(() => {
+                          const paymentStatus = (order.payment_status ?? "").toLowerCase();
+                          const isPaid = paymentStatus === "paid";
+                          const paymentMethod = order.payment_method ?? "--";
+
+                          if (!isPaid) {
+                            return (
+                              <>
+                                <Text style={styles.otpTitle}>Mark Payment Received</Text>
+                                <Text style={styles.itemsTextMuted}>
+                                  Select the payment method to mark as paid and generate the OTP.
+                                </Text>
+
+                                {!showPaymentMethods ? (
+                                  <Pressable
+                                    accessibilityRole="button"
+                                    disabled={markingPaid || loading}
+                                    onPress={() => {
+                                      setShowPaymentMethods(true);
+                                    }}
+                                    style={({ pressed }) => [
+                                      styles.otpButton,
+                                      (markingPaid || loading) && styles.otpButtonDisabled,
+                                      pressed && !(markingPaid || loading) && styles.otpButtonPressed,
+                                    ]}
+                                  >
+                                    {markingPaid ? (
+                                      <ActivityIndicator color={Colors.light.strongText} />
+                                    ) : (
+                                      <Text style={styles.otpButtonText}>Mark as Paid</Text>
+                                    )}
+                                  </Pressable>
+                                ) : (
+                                  <View style={styles.paymentButtonsWrap}>
+                                    <Pressable
+                                      accessibilityRole="button"
+                                      disabled={markingPaid || loading}
+                                      onPress={() => markPaymentReceived(order.id, "cash")}
+                                      style={({ pressed }) => [
+                                        styles.statusButton,
+                                        (markingPaid || loading) && styles.statusButtonDisabled,
+                                        pressed && !(markingPaid || loading) && styles.statusButtonPressed,
+                                      ]}
+                                    >
+                                      <Text style={styles.statusButtonText}>Cash</Text>
+                                    </Pressable>
+                                    <Pressable
+                                      accessibilityRole="button"
+                                      disabled={markingPaid || loading}
+                                      onPress={() => markPaymentReceived(order.id, "upi")}
+                                      style={({ pressed }) => [
+                                        styles.statusButton,
+                                        (markingPaid || loading) && styles.statusButtonDisabled,
+                                        pressed && !(markingPaid || loading) && styles.statusButtonPressed,
+                                      ]}
+                                    >
+                                      <Text style={styles.statusButtonText}>UPI</Text>
+                                    </Pressable>
+                                  </View>
+                                )}
+                              </>
+                            );
+                          }
+
+                          return (
+                            <>
+                              <Text style={styles.otpTitle}>Customer OTP</Text>
+                              <Text style={styles.itemsTextMuted}>
+                                Payment received via {paymentMethod}. Ask the customer for the 6-digit OTP and verify
+                                to mark as delivered.
+                              </Text>
+
+                              <TextInput
+                                value={otpInput}
+                                onChangeText={setOtpInput}
+                                placeholder="Enter OTP"
+                                keyboardType="number-pad"
+                                maxLength={6}
+                                style={styles.otpInput}
+                              />
+                              <Pressable
+                                accessibilityRole="button"
+                                disabled={verifyingOtp || loading}
+                                onPress={() => verifyOtp(order.id, otpInput)}
+                                style={({ pressed }) => [
+                                  styles.otpButton,
+                                  (verifyingOtp || loading) && styles.otpButtonDisabled,
+                                  pressed && !(verifyingOtp || loading) && styles.otpButtonPressed,
+                                ]}
+                              >
+                                {verifyingOtp ? (
+                                  <ActivityIndicator color={Colors.light.strongText} />
+                                ) : (
+                                  <Text style={styles.otpButtonText}>Verify OTP</Text>
+                                )}
+                              </Pressable>
+                            </>
+                          );
+                        })()}
                       </View>
                     )}
                   </>
@@ -696,9 +1049,39 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
+  },
+  chargeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  chargeRowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+  },
+  chargeLabel: {
+    color: Colors.light.mutedText,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  chargeValue: {
+    color: Colors.light.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  itemLeft: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  itemRight: {
+    alignItems: "flex-end",
   },
   itemName: {
     color: Colors.light.text,
@@ -708,6 +1091,49 @@ const styles = StyleSheet.create({
   itemQty: {
     color: Colors.light.mutedText,
     fontSize: 14,
+  },
+  itemPriceText: {
+    color: Colors.light.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  priceEditor: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  priceInput: {
+    width: 90,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: Colors.light.surface,
+    color: Colors.light.text,
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "right",
+  },
+  priceSaveButton: {
+    backgroundColor: Colors.light.strongBg,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minWidth: 70,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  priceSaveButtonPressed: {
+    opacity: 0.9,
+  },
+  priceSaveButtonDisabled: {
+    opacity: 0.55,
+  },
+  priceSaveButtonText: {
+    color: Colors.light.strongText,
+    fontSize: 13,
+    fontWeight: "800",
   },
   itemsText: {
     color: Colors.light.text,
@@ -800,6 +1226,12 @@ const styles = StyleSheet.create({
     color: Colors.light.strongText,
     fontSize: 15,
     fontWeight: "800",
+  },
+  paymentButtonsWrap: {
+    marginTop: 12,
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
   },
   actions: {
     paddingHorizontal: 20,
